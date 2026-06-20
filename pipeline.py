@@ -2,13 +2,13 @@ from preprocess_and_train import lgb_model, cat_model, categorical_features
 import joblib
 import numpy as np
 class UnifiedEnsemblePredictor:
-    def __init__(self, trained_lgb, trained_cat, cat_cols, w_lgb=0.5, w_cat=0.5, rmse_err=21.0):
+    def __init__(self, trained_lgb, trained_cat, cat_cols, w_lgb=0.8, w_cat=0.2, rmse_err=21.0):
         self.lgb_model = trained_lgb
         self.cat_model = trained_cat
         self.categorical_features = cat_cols
         self.w_lgb = w_lgb
         self.w_cat = w_cat
-        self.safety_buffer = rmse_err * 0.5 # Safety cushion factor to avoid under-catering
+        
 
     def predict(self, input_df):
         # 1. Format data for LightGBM
@@ -23,8 +23,8 @@ class UnifiedEnsemblePredictor:
         # 3. Blended calculation
         blended_prediction = (self.w_lgb * pred_lgb) + (self.w_cat * pred_cat)
         
-        # 4. Return finalized inventory quantity with safety buffer applied
-        return np.ceil(blended_prediction + self.safety_buffer)
+       
+        return np.ceil(blended_prediction)
 
 # Instantiate the ensemble pipeline
 production_ensemble = UnifiedEnsemblePredictor(

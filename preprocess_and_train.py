@@ -5,6 +5,7 @@ from sklearn.metrics import root_mean_squared_error, r2_score
 import lightgbm as lgb
 from catboost import CatBoostRegressor
 import joblib
+from sklearn.linear_model import Ridge
 
 # 1. Load Data & Target Engineering
 df = pd.read_csv('food_wastage_data.csv')
@@ -69,7 +70,7 @@ cat_preds = cat_model.predict(X_test)
 
 # Simple Weighted Average (Giving slightly more weight to LightGBM since it scored lower RMSE)
 # You can tweak weights (e.g., 0.5/0.5 or 0.6/0.4) based on your final CatBoost score
-weight_lgb = 0.65
+"""weight_lgb = 0.65
 weight_cat = 0.35
 ensemble_preds = (weight_lgb * lgb_preds) + (weight_cat * cat_preds)
 
@@ -78,4 +79,34 @@ print("\n--- Validation Performance Evaluation ---")
 print(f"LightGBM Only RMSE : {root_mean_squared_error(y_test, lgb_preds):.4f}")
 print(f"CatBoost Only RMSE : {root_mean_squared_error(y_test, cat_preds):.4f}")
 print(f"Ensemble Model RMSE: {root_mean_squared_error(y_test, ensemble_preds):.4f}")
+print(f"Ensemble Model R2  : {r2_score(y_test, ensemble_preds):.4f}")"""
+
+# Combine base model predictions into a feature matrix for the meta-learner
+# Shape will be (n_samples, 2)
+blend_features_test = np.column_stack((lgb_preds, cat_preds))
+
+# Fit Ridge without an intercept so the weights map directly to your models
+# fit_intercept=False ensures: Final_Pred = (w1 * lgb) + (w2 * cat)
+meta_model = Ridge(alpha=1.0, fit_intercept=False, random_state=42)
+meta_model.fit(blend_features_test, y_test)
+
+# Extract the optimal weights
+weights = meta_model.coef_
+weight_lgb, weight_cat = weights[0], weights[1]
+
+# Generate the optimal ensemble predictions using the meta-model
+ensemble_preds = meta_model.predict(blend_features_test)
+
+# =====================================================================
+
+# 6. Evaluate Performance
+print("\n--- Validation Performance Evaluation ---")
+print(f"LightGBM Only RMSE : {root_mean_squared_error(y_test, lgb_preds):.4f}")
+print(f"CatBoost Only RMSE : {root_mean_squared_error(y_test, cat_preds):.4f}")
+print(f"Ensemble Model RMSE: {root_mean_squared_error(y_test, ensemble_preds):.4f}")
 print(f"Ensemble Model R2  : {r2_score(y_test, ensemble_preds):.4f}")
+
+print("\n--- Optimal Ridge Ensemble Meta-Data ---")
+print(f"Calculated LightGBM Weight: {weight_lgb:.4f}")
+print(f"Calculated CatBoost Weight: {weight_cat:.4f}")
+print(f"Sum of Weights            : {np.sum(weights):.4f}")
